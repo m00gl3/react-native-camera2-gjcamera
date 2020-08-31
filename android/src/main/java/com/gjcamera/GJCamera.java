@@ -90,7 +90,7 @@ public class GJCamera extends AppCompatActivity {
 
     // Focus
     private boolean isManualFocusSupported;
-    private int focus = 0f;
+    private float focus = 0f;
 
     // FPS
     private Range<Integer> fps;
@@ -151,7 +151,7 @@ public class GJCamera extends AppCompatActivity {
 
     public void setResolution(int width, int height) { this.width = width; this.height = height; }
 
-    public void setFocus(int focus) { this.focus = focus; }
+    public void setFocus(float focus) { this.focus = focus; }
 
     public  List<Size> getAvailableResolutions() {
         List<Size> outputSizes = new ArrayList<Size>();
