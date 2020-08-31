@@ -20,9 +20,12 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
-import android.support.v7.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.appcompat.app.AppCompatActivity;
+
+import android.util.Log;
+import android.util.Range;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
@@ -44,14 +47,20 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.TimeZone;
+import java.util.stream.IntStream;
 
 public class GJCamera extends AppCompatActivity {
 
     private ImageButton btnCapture;
     private TextureView textureView;
     private static Promise promise;
+
+    // Parameters
+    private static int iso;
 
     //Check state orientation of output image
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -75,13 +84,40 @@ public class GJCamera extends AppCompatActivity {
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
 
+    // Exposurre
+    Range<Integer> exposureRanges;
+    private int exposureAdjustment;
+
+    // Focus
+    private boolean isManualFocusSupported;
+    private int focus = 0f;
+
+    // FPS
+    private Range<Integer> fps;
+
+    // ISO
+    private int seekIso = 200;//, seekSs = 2000;
+    private long seekSs = 117162276;
+    private float seekFocus = 0.0f;
+
+    // Resolution
+    //Capture image with custom size
+    private int width = 1600;
+    private int height = 1200;
+
     SurfaceTexture texture;
 
-    public static GJCamera newInstance() {
-        GJCamera a = new GJCamera();
-        return a;
-    }
+    private static GJCamera sSoleInstance;
 
+    private GJCamera(){}  //private constructor.
+
+    public static GJCamera getInstance(){
+        if (sSoleInstance == null){ //if there is no instance available... create new one
+            sSoleInstance = new GJCamera();
+        }
+
+        return sSoleInstance;
+    }
 
     CameraDevice.StateCallback SCB = new CameraDevice.StateCallback() {
         @Override
@@ -107,6 +143,92 @@ public class GJCamera extends AppCompatActivity {
         this.promise = promise;
     }
 
+    public void setFps( Range<Integer> fps) { this.fps = fps; }
+
+    public void setISO(int iso) { this.seekIso = iso; }
+
+    public void setExposure(int exposureAdjustment) { this.exposureAdjustment = exposureAdjustment; }
+
+    public void setResolution(int width, int height) { this.width = width; this.height = height; }
+
+    public void setFocus(int focus) { this.focus = focus; }
+
+    public  List<Size> getAvailableResolutions() {
+        List<Size> outputSizes = new ArrayList<Size>();
+
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            cameraId = manager.getCameraIdList()[0];
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+            StreamConfigurationMap map = characteristics
+                    .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
+            outputSizes = Arrays.asList(map.getOutputSizes(ImageFormat.RAW_SENSOR)
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+        return outputSizes;
+    }
+
+    public boolean checkIsManualFocusSupported() {
+        boolean mIsManualFocusSupported = false;
+
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            cameraId = manager.getCameraIdList()[0];
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+            int[] capabilities = characteristics
+                .get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
+
+            mIsManualFocusSupported = IntStream.of(capabilities)
+                .anyMatch(x -> x == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR);
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+        return mIsManualFocusSupported;
+    }
+
+
+    public Range<Integer>[] getFpsRanges() {
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            cameraId = manager.getCameraIdList()[0];
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+            // Get supported fps for this camera
+            Range<Integer>[] fpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+            Log.d("FPS", "SYNC_MAX_LATENCY_PER_FRAME_CONTROL: " + Arrays.toString(fpsRanges));
+
+            return fpsRanges;
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public Range<Integer> getExposureRanges() {
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            cameraId = manager.getCameraIdList()[0];
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+            // Get supported exposures for this camera
+            // Get supported exposure for this camera
+            Range<Integer> exposureRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);
+            Log.d("EXPOSURES", ": " + Arrays.toString(exposureRanges));
+
+            return exposureRanges;
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -143,11 +265,19 @@ public class GJCamera extends AppCompatActivity {
                 jpegSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
                         .getOutputSizes(ImageFormat.JPEG);
 
-            //Capture image with custom size
-            int width = 1600;
-            int height = 1200;
 
-            imageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
+            StreamConfigurationMap map = characteristics.get(
+                    CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
+            Size largestRaw = Collections.max(
+                    Arrays.asList(map.getOutputSizes(ImageFormat.RAW_SENSOR)),
+                    new CompareSizesByArea());
+
+            // Save as RAW
+            imageReader = ImageReader.newInstance(largestRaw.getWidth(),
+                    largestRaw.getHeight(), ImageFormat.RAW_SENSOR, /*maxImages*/ 5);
+
+           // imageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
             List<Surface> outputSurface = new ArrayList<>(2);
             outputSurface.add(imageReader.getSurface());
             outputSurface.add(new Surface(textureView.getSurfaceTexture()));
@@ -286,6 +416,41 @@ public class GJCamera extends AppCompatActivity {
     private void updatePreview() {
         if (cameraDevice == null)
             Toast.makeText(this, "Error", Toast.LENGTH_SHORT).show();
+
+        // How to set focus manually if available capability
+        /*
+            https://stackoverflow.com/questions/42901334/manual-focus-using-android-camera2-api
+        */
+        if (isManualFocusSupported) {
+             captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF);
+            captureRequestBuilder.set(CaptureRequest.LENS_FOCUS_DISTANCE, focus);
+        }
+
+        ///////////////////////////
+        // How to set FPS
+        // Set the frame rate of the preview screen. Select a frame rate range depending on the actual situation.
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
+
+        ///////////////////////////
+        // How to set exposure
+        // https://stackoverflow.com/questions/53514188/change-control-ae-exposure-compensation-propostional-to-seekbar-progress-in-came
+        int minExposure = exposureRanges.getLower();
+        int maxExposure = exposureRanges.getUpper();
+
+        float newCalculatedValue = 0;
+        if (exposureAdjustment >= 0) {
+            newCalculatedValue = (float) (minExposure * exposureAdjustment);
+        } else {
+            newCalculatedValue = (float) (maxExposure * -1 * exposureAdjustment);
+        }
+
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, (int) newCalculatedValue);
+        
+        // https://github.com/mohankumar-s/android_camera2_manual/blob/master/Camera2ManualFragment.java
+        // ISO
+        captureRequestBuilder.set(CaptureRequest.SENSOR_SENSITIVITY, seekIso);
+
+        /////
         captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO);
         try {
             cameraCaptureSessions.setRepeatingRequest(captureRequestBuilder.build(), null, mBackgroundHandler);
@@ -299,6 +464,11 @@ public class GJCamera extends AppCompatActivity {
         try {
             cameraId = manager.getCameraIdList()[0];
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+            exposureRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);
+
+            isManualFocusSupported = this.checkIsManualFocusSupported();
+
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             assert map != null;
             //Check realtime permission if run higher API 23
@@ -389,4 +559,17 @@ public class GJCamera extends AppCompatActivity {
         newFile.putString("imgPath", fileLocation.getPath());
         return newFile;
     }
+
+    /**
+     * Comparator based on area of the given {@link Size} objects.
+     */
+    static class CompareSizesByArea implements Comparator<Size> {
+        @Override
+        public int compare(Size lhs, Size rhs) {
+            // We cast here to ensure the multiplications won't overflow
+            return Long.signum((long) lhs.getWidth() * lhs.getHeight() -
+                    (long) rhs.getWidth() * rhs.getHeight());
+        }
+    }
 }
+
