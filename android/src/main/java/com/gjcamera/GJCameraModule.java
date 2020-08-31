@@ -46,7 +46,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void openCamera(final Promise promise, final  Range<Integer> fps, final int exposureAdjustment, final int iso, final int width, final int height, final int focus) {
+    public void openCamera(final Promise promise, final  Range<Integer> fps, final int exposureAdjustment, final int iso, final int width, final int height, final float focus) {
         Activity currentActivity = getCurrentActivity();
         GJCamera gjc = GJCamera.getInstance();
         gjc.setPromise(promise);
