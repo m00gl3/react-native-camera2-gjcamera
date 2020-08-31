@@ -90,7 +90,7 @@ public class GJCamera extends AppCompatActivity {
 
     // Focus
     private boolean isManualFocusSupported;
-    private int focus = 0f;
+    private float focus = 0f;
 
     // FPS
     private Range<Integer> fps;
@@ -151,7 +151,7 @@ public class GJCamera extends AppCompatActivity {
 
     public void setResolution(int width, int height) { this.width = width; this.height = height; }
 
-    public void setFocus(int focus) { this.focus = focus; }
+    public void setFocus(float focus) { this.focus = focus; }
 
     public  List<Size> getAvailableResolutions() {
         List<Size> outputSizes = new ArrayList<Size>();
@@ -164,7 +164,7 @@ public class GJCamera extends AppCompatActivity {
             StreamConfigurationMap map = characteristics
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
 
-            outputSizes = Arrays.asList(map.getOutputSizes(ImageFormat.RAW_SENSOR)
+            outputSizes = Arrays.asList(map.getOutputSizes(ImageFormat.RAW_SENSOR));
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -210,6 +210,8 @@ public class GJCamera extends AppCompatActivity {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+
+        return null;
     }
 
     public Range<Integer> getExposureRanges() {
@@ -221,13 +223,14 @@ public class GJCamera extends AppCompatActivity {
             // Get supported exposures for this camera
             // Get supported exposure for this camera
             Range<Integer> exposureRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);
-            Log.d("EXPOSURES", ": " + Arrays.toString(exposureRanges));
 
             return exposureRanges;
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+
+        return null;
     }
 
     @Override
