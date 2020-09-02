@@ -22,31 +22,84 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public Range<Integer>[] getFpsRanges() {
+    public void getFpsRanges(final Promise promise) {
         GJCamera gjc = GJCamera.getInstance();
-        return gjc.getFpsRanges();
+        Range<Integer>[] result = gjc.getFpsRanges(this.getReactApplicationContext());
+
+        String outputArray = "";
+
+        for (int i = 0; i < result.length; i++) {
+            String arrayElement = result[i].toString();
+            outputArray += arrayElement;
+
+            if (i < result.length - 1)
+                outputArray += "|";
+        }
+
+        promise.resolve(outputArray);
     }
 
     @ReactMethod
-    public Range<Integer> getExposureRanges() {
+    public void getExposureRanges(final Promise promise) {
         GJCamera gjc = GJCamera.getInstance();
-        return gjc.getExposureRanges();
+        Range<Long> result = gjc.getExposureRanges(this.getReactApplicationContext());
+
+        promise.resolve(result.toString());
     }
 
     @ReactMethod
-    public List<Size> getAvailableResolutions() {
+    public void getIsoRanges(final Promise promise) {
         GJCamera gjc = GJCamera.getInstance();
-        return gjc.getAvailableResolutions();
-    }
-    
-    @ReactMethod
-    public boolean isManualFocusSupported() {
-        GJCamera gjc = GJCamera.getInstance();
-        return gjc.checkIsManualFocusSupported();
+        Range<Integer> result = gjc.getIsoRanges(this.getReactApplicationContext());
+
+        promise.resolve(result.toString());
     }
 
     @ReactMethod
-    public void openCamera(final Promise promise, final  Range<Integer> fps, final int exposureAdjustment, final int iso, final int width, final int height, final float focus) {
+    public void getAvailableResolutions(final Promise promise) {
+        GJCamera gjc = GJCamera.getInstance();
+        List<Size> result = gjc.getAvailableResolutions(this.getReactApplicationContext());
+
+        promise.resolve(result.toString());
+    }
+
+    @ReactMethod
+    public void isManualFocusSupported(final Promise promise) {
+        GJCamera gjc = GJCamera.getInstance();
+        boolean result = gjc.checkIsManualFocusSupported(this.getReactApplicationContext());
+
+        promise.resolve(result);
+    }
+
+    @ReactMethod
+    public void getMinimumFocusDistance(final Promise promise) {
+        GJCamera gjc = GJCamera.getInstance();
+        float result = gjc.getMinimumFocusDistance(this.getReactApplicationContext());
+
+        promise.resolve(result);
+    }
+
+    /*  final  Range<Integer> fps,
+     final int exposureAdjustment,
+     final int iso,
+     final int width,
+     final int height,
+     final float focus
+  */
+
+    @ReactMethod
+    public void openCamera(final Promise promise) {
+        Activity currentActivity = getCurrentActivity();
+        GJCamera gjc = GJCamera.getInstance();
+        gjc.setPromise(promise);
+
+        Intent intent = new Intent(getCurrentActivity(), GJCamera.class);
+        currentActivity.startActivity(intent);
+    }
+    /*
+    public void openCamera(final Promise promise, Object options) {
+
+
         Activity currentActivity = getCurrentActivity();
         GJCamera gjc = GJCamera.getInstance();
         gjc.setPromise(promise);
@@ -70,6 +123,8 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         Intent intent = new Intent(getCurrentActivity(), GJCamera.class);
         currentActivity.startActivity(intent);
     }
+
+     */
 
     @Override
     public String getName() {

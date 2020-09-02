@@ -36,6 +36,7 @@ import android.widget.Toast;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.WritableMap;
 
 import java.io.File;
@@ -85,20 +86,18 @@ public class GJCamera extends AppCompatActivity {
     private HandlerThread mBackgroundThread;
 
     // Exposurre
-    Range<Integer> exposureRanges;
-    private int exposureAdjustment;
+    Range<Long> exposureRanges;
+    private int exposureTime;
 
     // Focus
     private boolean isManualFocusSupported;
-    private float focus = 0f;
+    private float focus = 5.0f;
 
     // FPS
     private Range<Integer> fps;
 
     // ISO
     private int seekIso = 200;//, seekSs = 2000;
-    private long seekSs = 117162276;
-    private float seekFocus = 0.0f;
 
     // Resolution
     //Capture image with custom size
@@ -147,16 +146,16 @@ public class GJCamera extends AppCompatActivity {
 
     public void setISO(int iso) { this.seekIso = iso; }
 
-    public void setExposure(int exposureAdjustment) { this.exposureAdjustment = exposureAdjustment; }
+    public void setExposure(int exposureTime) { this.exposureTime = exposureTime; }
 
     public void setResolution(int width, int height) { this.width = width; this.height = height; }
 
     public void setFocus(float focus) { this.focus = focus; }
 
-    public  List<Size> getAvailableResolutions() {
+    public  List<Size> getAvailableResolutions(ReactApplicationContext context) {
         List<Size> outputSizes = new ArrayList<Size>();
 
-        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         try {
             cameraId = manager.getCameraIdList()[0];
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
@@ -173,30 +172,49 @@ public class GJCamera extends AppCompatActivity {
         return outputSizes;
     }
 
-    public boolean checkIsManualFocusSupported() {
+    public boolean checkIsManualFocusSupported(ReactApplicationContext context) {
         boolean mIsManualFocusSupported = false;
 
-        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         try {
             cameraId = manager.getCameraIdList()[0];
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
 
             int[] capabilities = characteristics
-                .get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
+                    .get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
 
             mIsManualFocusSupported = IntStream.of(capabilities)
-                .anyMatch(x -> x == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR);
+                    .anyMatch(x -> x == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR);
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
 
+        this.isManualFocusSupported = mIsManualFocusSupported;
+
         return mIsManualFocusSupported;
     }
 
+    public float getMinimumFocusDistance(ReactApplicationContext context) {
+        float minimumLens = 0f;
 
-    public Range<Integer>[] getFpsRanges() {
-        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+        try {
+            cameraId = manager.getCameraIdList()[0];
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+            minimumLens = characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+        return minimumLens;
+    }
+
+
+    public Range<Integer>[] getFpsRanges(ReactApplicationContext context) {
+        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         try {
             cameraId = manager.getCameraIdList()[0];
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
@@ -214,17 +232,36 @@ public class GJCamera extends AppCompatActivity {
         return null;
     }
 
-    public Range<Integer> getExposureRanges() {
-        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+    public Range<Long> getExposureRanges(ReactApplicationContext context) {
+        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         try {
             cameraId = manager.getCameraIdList()[0];
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
 
             // Get supported exposures for this camera
             // Get supported exposure for this camera
-            Range<Integer> exposureRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);
+            Range<Long> exposureRanges = characteristics.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE);
 
             return exposureRanges;
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public Range<Integer> getIsoRanges(ReactApplicationContext context) {
+        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+        try {
+            cameraId = manager.getCameraIdList()[0];
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+            // Get supported exposures for this camera
+            // Get supported exposure for this camera
+            Range<Integer> isoRanges = characteristics.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);
+
+            return isoRanges;
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -280,7 +317,7 @@ public class GJCamera extends AppCompatActivity {
             imageReader = ImageReader.newInstance(largestRaw.getWidth(),
                     largestRaw.getHeight(), ImageFormat.RAW_SENSOR, /*maxImages*/ 5);
 
-           // imageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
+            // imageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
             List<Surface> outputSurface = new ArrayList<>(2);
             outputSurface.add(imageReader.getSurface());
             outputSurface.add(new Surface(textureView.getSurfaceTexture()));
@@ -425,31 +462,33 @@ public class GJCamera extends AppCompatActivity {
             https://stackoverflow.com/questions/42901334/manual-focus-using-android-camera2-api
         */
         if (isManualFocusSupported) {
-             captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF);
+            captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF);
+
+            // Desired distance to plane of sharpest focus, measured from frontmost surface of the lens
             captureRequestBuilder.set(CaptureRequest.LENS_FOCUS_DISTANCE, focus);
         }
 
+        /*
+        // Required for RAW capture
+            captureBuilder.set(CaptureRequest.STATISTICS_LENS_SHADING_MAP_MODE, CaptureRequest.STATISTICS_LENS_SHADING_MAP_MODE_ON);
+            captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
+            captureBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+            captureBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, (long) ((214735991 - 13231) / 2));
+            captureBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);
+            captureBuilder.set(CaptureRequest.SENSOR_SENSITIVITY, (10000 - 100) / 2);//设置 ISO，感光度
+         */
         ///////////////////////////
         // How to set FPS
         // Set the frame rate of the preview screen. Select a frame rate range depending on the actual situation.
+        // Range over which the auto-exposure routine can adjust the capture frame rate to maintain good exposure.
         captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
 
         ///////////////////////////
-        // How to set exposure
-        // https://stackoverflow.com/questions/53514188/change-control-ae-exposure-compensation-propostional-to-seekbar-progress-in-came
-        int minExposure = exposureRanges.getLower();
-        int maxExposure = exposureRanges.getUpper();
+        // How to set exposure time
+        captureRequestBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, (long) exposureTime);
 
-        float newCalculatedValue = 0;
-        if (exposureAdjustment >= 0) {
-            newCalculatedValue = (float) (minExposure * exposureAdjustment);
-        } else {
-            newCalculatedValue = (float) (maxExposure * -1 * exposureAdjustment);
-        }
-
-        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, (int) newCalculatedValue);
-        
         // https://github.com/mohankumar-s/android_camera2_manual/blob/master/Camera2ManualFragment.java
+        // https://github.com/pinguo-yuyidong/Camera2/blob/master/app/src/main/java/us/yydcdut/androidltest/ui/DisplayFragment.java
         // ISO
         captureRequestBuilder.set(CaptureRequest.SENSOR_SENSITIVITY, seekIso);
 
@@ -468,9 +507,7 @@ public class GJCamera extends AppCompatActivity {
             cameraId = manager.getCameraIdList()[0];
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
 
-            exposureRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);
-
-            isManualFocusSupported = this.checkIsManualFocusSupported();
+            exposureRanges = characteristics.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE);
 
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             assert map != null;
