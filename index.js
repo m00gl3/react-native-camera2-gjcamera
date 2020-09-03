@@ -8,6 +8,15 @@ class GJ {
     return result;
   }
 
+  OpenMyCameraWithParams = async(params) => {
+    const stringParams = JSON.stringify(params);
+
+    console.log('params = ' + stringParams);
+
+    const result = await GJC.openCameraWithParams(params);
+    return result;
+  }
+
   getFpsRanges = async() => {
     const result = await GJC.getFpsRanges();
     return result;
