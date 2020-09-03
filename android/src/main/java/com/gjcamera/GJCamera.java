@@ -544,11 +544,15 @@ public class GJCamera extends AppCompatActivity {
     private void initCameraParameters(Params paramsObj) {
         // Set ISO
         int iso = paramsObj.getISO();
-        setISO(iso);
+
+        if (iso !== null)
+            setISO(iso);
 
         // Set Exposure
         long exposure = paramsObj.getExposure();
-        setExposure(exposure);
+        
+        if (exposure !== null)
+            setExposure(exposure);
 
         // "[10, 30]"
         // We need to extract Range value here
@@ -582,7 +586,10 @@ public class GJCamera extends AppCompatActivity {
         setResolution(width, height);
 
         if (checkIsManualFocusSupportedWithoutContext()) {
-            setFocus(paramsObj.getFocus());
+            float newFocus = paramsObj.getFocus();
+
+            if (newFocus !== null)
+                setFocus();
         }
     }
 
