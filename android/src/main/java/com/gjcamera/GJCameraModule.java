@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.gson.Gson;
+
 public class GJCameraModule extends ReactContextBaseJavaModule {
 
 
@@ -96,35 +98,60 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         Intent intent = new Intent(getCurrentActivity(), GJCamera.class);
         currentActivity.startActivity(intent);
     }
-    /*
-    public void openCamera(final Promise promise, Object options) {
 
-
+    // promise must be used as last param
+    @ReactMethod
+    public void openCameraWithParams(String params, final Promise promise ) {
         Activity currentActivity = getCurrentActivity();
         GJCamera gjc = GJCamera.getInstance();
         gjc.setPromise(promise);
 
-        // Set ISO
-        gjc.setISO(iso);
+        Gson g = new Gson();
 
-        // Set FPS
-        gjc.setFps(fps);
+        Params paramsObj = g.fromJson(params, Params.class);
+
+        // Set ISO
+        gjc.setISO(paramsObj.getISO());
 
         // Set Exposure
-        gjc.setExposure(exposureAdjustment);
+        gjc.setExposure(paramsObj.getExposure());
+
+        // "[10, 30]"
+        // We need to extract Range value here
+        String tempFpsRange = paramsObj.getFps();
+        tempFpsRange = tempFpsRange.replace("\"", "");
+        tempFpsRange = tempFpsRange.replace("[", "");
+        tempFpsRange = tempFpsRange.replace("]", "");
+
+        String[] fpsRange = tempFpsRange.split(",");
+        int minFpsRange = Integer.valueOf(fpsRange[0]);
+        int maxFpsRange = Integer.valueOf(fpsRange[1]);
+
+        // Set FPS
+        gjc.setFps(new Range<Integer>(minFpsRange, maxFpsRange));
+
+        // Resolution
+        // "[4224x3120]"
+        String tempResolution = paramsObj.getResolution();
+        tempResolution = tempResolution.replace("\"", "");
+        tempResolution = tempResolution.replace("[", "");
+        tempResolution = tempResolution.replace("]", "");
+
+        String[] resolution = tempResolution.split("x");
+        int width = Integer.valueOf(resolution[0]);
+        int height = Integer.valueOf(resolution[1]);
 
         // Set resolution
         gjc.setResolution(width, height);
 
-        if (gjc.checkIsManualFocusSupported()) {
-            gjc.setFocus(focus);
+        if (gjc.checkIsManualFocusSupported(this.getReactApplicationContext())) {
+            gjc.setFocus(paramsObj.getFocus());
         }
 
         Intent intent = new Intent(getCurrentActivity(), GJCamera.class);
         currentActivity.startActivity(intent);
     }
 
-     */
 
     @Override
     public String getName() {
@@ -139,5 +166,3 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         return constants;
     }
 }
-
-
