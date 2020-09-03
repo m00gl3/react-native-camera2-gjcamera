@@ -29,17 +29,21 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         GJCamera gjc = GJCamera.newInstance();
         Range<Integer>[] result = gjc.getFpsRanges(this.getReactApplicationContext());
 
-        String outputArray = "";
+        if (result !== null) {
+            String outputArray = "";
 
-        for (int i = 0; i < result.length; i++) {
-            String arrayElement = result[i].toString();
-            outputArray += arrayElement;
+            for (int i = 0; i < result.length; i++) {
+                String arrayElement = result[i].toString();
+                outputArray += arrayElement;
 
-            if (i < result.length - 1)
-                outputArray += "|";
+                if (i < result.length - 1)
+                    outputArray += "|";
+            }
+
+            promise.resolve(outputArray);
+        } else {
+            promise.resolve(null);
         }
-
-        promise.resolve(outputArray);
     }
 
     @ReactMethod
@@ -47,7 +51,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         GJCamera gjc = GJCamera.newInstance();
         Range<Long> result = gjc.getExposureRanges(this.getReactApplicationContext());
 
-        promise.resolve(result.toString());
+        promise.resolve(result !== null ? result.toString() : null);
     }
 
     @ReactMethod
@@ -55,7 +59,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         GJCamera gjc = GJCamera.newInstance();
         Range<Integer> result = gjc.getIsoRanges(this.getReactApplicationContext());
 
-        promise.resolve(result.toString());
+        promise.resolve(result !== null ? result.toString() : null);
     }
 
     @ReactMethod
@@ -63,7 +67,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         GJCamera gjc = GJCamera.newInstance();
         List<Size> result = gjc.getAvailableResolutions(this.getReactApplicationContext());
 
-        promise.resolve(result.toString());
+        promise.resolve(result !== null ? result.toString() : null);
     }
 
     @ReactMethod
