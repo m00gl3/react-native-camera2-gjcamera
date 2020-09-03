@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.facebook.react.bridge.ReadableNativeMap;
 import com.google.gson.Gson;
 
 public class GJCameraModule extends ReactContextBaseJavaModule {
@@ -25,7 +26,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void getFpsRanges(final Promise promise) {
-        GJCamera gjc = GJCamera.getInstance();
+        GJCamera gjc = GJCamera.newInstance();
         Range<Integer>[] result = gjc.getFpsRanges(this.getReactApplicationContext());
 
         String outputArray = "";
@@ -43,7 +44,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void getExposureRanges(final Promise promise) {
-        GJCamera gjc = GJCamera.getInstance();
+        GJCamera gjc = GJCamera.newInstance();
         Range<Long> result = gjc.getExposureRanges(this.getReactApplicationContext());
 
         promise.resolve(result.toString());
@@ -51,7 +52,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void getIsoRanges(final Promise promise) {
-        GJCamera gjc = GJCamera.getInstance();
+        GJCamera gjc = GJCamera.newInstance();
         Range<Integer> result = gjc.getIsoRanges(this.getReactApplicationContext());
 
         promise.resolve(result.toString());
@@ -59,7 +60,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void getAvailableResolutions(final Promise promise) {
-        GJCamera gjc = GJCamera.getInstance();
+        GJCamera gjc = GJCamera.newInstance();
         List<Size> result = gjc.getAvailableResolutions(this.getReactApplicationContext());
 
         promise.resolve(result.toString());
@@ -67,7 +68,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void isManualFocusSupported(final Promise promise) {
-        GJCamera gjc = GJCamera.getInstance();
+        GJCamera gjc = GJCamera.newInstance();
         boolean result = gjc.checkIsManualFocusSupported(this.getReactApplicationContext());
 
         promise.resolve(result);
@@ -75,7 +76,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void getMinimumFocusDistance(final Promise promise) {
-        GJCamera gjc = GJCamera.getInstance();
+        GJCamera gjc = GJCamera.newInstance();
         float result = gjc.getMinimumFocusDistance(this.getReactApplicationContext());
 
         promise.resolve(result);
@@ -92,7 +93,8 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void openCamera(final Promise promise) {
         Activity currentActivity = getCurrentActivity();
-        GJCamera gjc = GJCamera.getInstance();
+       // GJCamera gjc = GJCamera.getInstance();
+        GJCamera gjc = GJCamera.newInstance();
         gjc.setPromise(promise);
 
         Intent intent = new Intent(getCurrentActivity(), GJCamera.class);
@@ -103,52 +105,16 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void openCameraWithParams(String params, final Promise promise ) {
         Activity currentActivity = getCurrentActivity();
-        GJCamera gjc = GJCamera.getInstance();
+     //   GJCamera gjc = GJCamera.getInstance();
+        GJCamera gjc = GJCamera.newInstance();
         gjc.setPromise(promise);
 
         Gson g = new Gson();
 
         Params paramsObj = g.fromJson(params, Params.class);
 
-        // Set ISO
-        gjc.setISO(paramsObj.getISO());
-
-        // Set Exposure
-        gjc.setExposure(paramsObj.getExposure());
-
-        // "[10, 30]"
-        // We need to extract Range value here
-        String tempFpsRange = paramsObj.getFps();
-        tempFpsRange = tempFpsRange.replace("\"", "");
-        tempFpsRange = tempFpsRange.replace("[", "");
-        tempFpsRange = tempFpsRange.replace("]", "");
-
-        String[] fpsRange = tempFpsRange.split(",");
-        int minFpsRange = Integer.valueOf(fpsRange[0]);
-        int maxFpsRange = Integer.valueOf(fpsRange[1]);
-
-        // Set FPS
-        gjc.setFps(new Range<Integer>(minFpsRange, maxFpsRange));
-
-        // Resolution
-        // "[4224x3120]"
-        String tempResolution = paramsObj.getResolution();
-        tempResolution = tempResolution.replace("\"", "");
-        tempResolution = tempResolution.replace("[", "");
-        tempResolution = tempResolution.replace("]", "");
-
-        String[] resolution = tempResolution.split("x");
-        int width = Integer.valueOf(resolution[0]);
-        int height = Integer.valueOf(resolution[1]);
-
-        // Set resolution
-        gjc.setResolution(width, height);
-
-        if (gjc.checkIsManualFocusSupported(this.getReactApplicationContext())) {
-            gjc.setFocus(paramsObj.getFocus());
-        }
-
         Intent intent = new Intent(getCurrentActivity(), GJCamera.class);
+        intent.putExtra("params", paramsObj);
         currentActivity.startActivity(intent);
     }
 

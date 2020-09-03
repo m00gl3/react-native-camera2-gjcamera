@@ -1,5 +1,7 @@
 package com.gjcamera;
 
+import java.io.Serializable;
+
 /*
 {
 	"fps": "[10, 30]",
@@ -12,7 +14,7 @@ package com.gjcamera;
 	"resolution": "[4224x3120]"
 }
  */
-public class Params {
+public class Params implements Serializable {
     private String fps;
     private float focus;
     private int focusSeekbar;

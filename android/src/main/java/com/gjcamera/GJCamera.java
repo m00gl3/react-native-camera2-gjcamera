@@ -53,6 +53,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.stream.IntStream;
+import android.content.Intent;
 
 public class GJCamera extends AppCompatActivity {
 
@@ -87,25 +88,26 @@ public class GJCamera extends AppCompatActivity {
 
     // Exposurre
     Range<Long> exposureRanges;
-    private int exposureTime;
+    private long mExposureTime;
 
     // Focus
     private boolean isManualFocusSupported;
     private float focus = 5.0f;
 
     // FPS
-    private Range<Integer> fps;
+    private Range<Integer> mFps;
 
     // ISO
-    private int seekIso = 200;//, seekSs = 2000;
+    private int mIso = 200;//, seekSs = 2000;
 
     // Resolution
     //Capture image with custom size
-    private int width = 1600;
-    private int height = 1200;
+    private int mWidth = 1600;
+    private int mHeight = 1200;
 
     SurfaceTexture texture;
 
+    /*
     private static GJCamera sSoleInstance;
 
     private GJCamera(){}  //private constructor.
@@ -116,6 +118,12 @@ public class GJCamera extends AppCompatActivity {
         }
 
         return sSoleInstance;
+    }
+     */
+
+    public static GJCamera newInstance() {
+        GJCamera a = new GJCamera();
+        return a;
     }
 
     CameraDevice.StateCallback SCB = new CameraDevice.StateCallback() {
@@ -142,13 +150,22 @@ public class GJCamera extends AppCompatActivity {
         this.promise = promise;
     }
 
-    public void setFps( Range<Integer> fps) { this.fps = fps; }
+    public void setFps( Range<Integer> fps) { mFps = fps; }
 
-    public void setISO(int iso) { this.seekIso = iso; }
+    public void setISO(int iso) {
+        mIso = iso;
+    }
 
-    public void setExposure(int exposureTime) { this.exposureTime = exposureTime; }
+    public void setExposure(long exposureTime)
+    {
+        mExposureTime = exposureTime;
+    }
 
-    public void setResolution(int width, int height) { this.width = width; this.height = height; }
+    public void setResolution(int width, int height)
+    {
+        mWidth = width;
+        mHeight = height;
+    }
 
     public void setFocus(float focus) { this.focus = focus; }
 
@@ -190,7 +207,30 @@ public class GJCamera extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        this.isManualFocusSupported = mIsManualFocusSupported;
+        isManualFocusSupported = mIsManualFocusSupported;
+
+        return mIsManualFocusSupported;
+    }
+
+    private boolean checkIsManualFocusSupportedWithoutContext() {
+        boolean mIsManualFocusSupported = false;
+
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            cameraId = manager.getCameraIdList()[0];
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+            int[] capabilities = characteristics
+                    .get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
+
+            mIsManualFocusSupported = IntStream.of(capabilities)
+                    .anyMatch(x -> x == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR);
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+        isManualFocusSupported = mIsManualFocusSupported;
 
         return mIsManualFocusSupported;
     }
@@ -313,11 +353,11 @@ public class GJCamera extends AppCompatActivity {
                     Arrays.asList(map.getOutputSizes(ImageFormat.RAW_SENSOR)),
                     new CompareSizesByArea());
 
-            // Save as RAW
+            // Save as RAW (using largest width and height)
             imageReader = ImageReader.newInstance(largestRaw.getWidth(),
                     largestRaw.getHeight(), ImageFormat.RAW_SENSOR, /*maxImages*/ 5);
 
-            // imageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
+            // imageReader = ImageReader.newInstance(mWidth, mHeight, ImageFormat.JPEG, 1);
             List<Surface> outputSurface = new ArrayList<>(2);
             outputSurface.add(imageReader.getSurface());
             outputSurface.add(new Surface(textureView.getSurfaceTexture()));
@@ -481,16 +521,16 @@ public class GJCamera extends AppCompatActivity {
         // How to set FPS
         // Set the frame rate of the preview screen. Select a frame rate range depending on the actual situation.
         // Range over which the auto-exposure routine can adjust the capture frame rate to maintain good exposure.
-        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, mFps);
 
         ///////////////////////////
         // How to set exposure time
-        captureRequestBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, (long) exposureTime);
+        captureRequestBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, (long) mExposureTime);
 
         // https://github.com/mohankumar-s/android_camera2_manual/blob/master/Camera2ManualFragment.java
         // https://github.com/pinguo-yuyidong/Camera2/blob/master/app/src/main/java/us/yydcdut/androidltest/ui/DisplayFragment.java
         // ISO
-        captureRequestBuilder.set(CaptureRequest.SENSOR_SENSITIVITY, seekIso);
+        captureRequestBuilder.set(CaptureRequest.SENSOR_SENSITIVITY, mIso);
 
         /////
         captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO);
@@ -501,7 +541,60 @@ public class GJCamera extends AppCompatActivity {
         }
     }
 
+    private void initCameraParameters(Params paramsObj) {
+        // Set ISO
+        int iso = paramsObj.getISO();
+        setISO(iso);
+
+        // Set Exposure
+        long exposure = paramsObj.getExposure();
+        setExposure(exposure);
+
+        // "[10, 30]"
+        // We need to extract Range value here
+        String tempFpsRange = paramsObj.getFps();
+        tempFpsRange = tempFpsRange.replace("\"", "");
+        tempFpsRange = tempFpsRange.replace("[", "");
+        tempFpsRange = tempFpsRange.replace("]", "");
+        tempFpsRange = tempFpsRange.replace(" ", "");
+
+        String[] fpsRange = tempFpsRange.split(",");
+        int minFpsRange = Integer.valueOf(fpsRange[0]);
+        int maxFpsRange = Integer.valueOf(fpsRange[1]);
+
+        Range<Integer> newFpsRange = new Range(minFpsRange, maxFpsRange);
+
+        // Set FPS
+        setFps(newFpsRange);
+
+        // Resolution
+        // "[4224x3120]"
+        String tempResolution = paramsObj.getResolution();
+        tempResolution = tempResolution.replace("\"", "");
+        tempResolution = tempResolution.replace("[", "");
+        tempResolution = tempResolution.replace("]", "");
+
+        String[] resolution = tempResolution.split("x");
+        int width = Integer.valueOf(resolution[0]);
+        int height = Integer.valueOf(resolution[1]);
+
+        // Set resolution
+        setResolution(width, height);
+
+        if (checkIsManualFocusSupportedWithoutContext()) {
+            setFocus(paramsObj.getFocus());
+        }
+    }
+
     private void startCamera() {
+        ///////////////////////////////////////
+        // We'll reload our parameters here
+        Intent i = getIntent();
+        Params params = (Params)i.getSerializableExtra("params");
+
+        initCameraParameters(params);
+        ///////////////////////////////////////
+
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             cameraId = manager.getCameraIdList()[0];
