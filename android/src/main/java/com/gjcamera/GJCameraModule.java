@@ -29,7 +29,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         GJCamera gjc = GJCamera.newInstance();
         Range<Integer>[] result = gjc.getFpsRanges(this.getReactApplicationContext());
 
-        if (result !== null) {
+        if (result != null) {
             String outputArray = "";
 
             for (int i = 0; i < result.length; i++) {
@@ -51,7 +51,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         GJCamera gjc = GJCamera.newInstance();
         Range<Long> result = gjc.getExposureRanges(this.getReactApplicationContext());
 
-        promise.resolve(result !== null ? result.toString() : null);
+        promise.resolve(result != null ? result.toString() : null);
     }
 
     @ReactMethod
@@ -59,7 +59,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         GJCamera gjc = GJCamera.newInstance();
         Range<Integer> result = gjc.getIsoRanges(this.getReactApplicationContext());
 
-        promise.resolve(result !== null ? result.toString() : null);
+        promise.resolve(result != null ? result.toString() : null);
     }
 
     @ReactMethod
@@ -67,7 +67,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
         GJCamera gjc = GJCamera.newInstance();
         List<Size> result = gjc.getAvailableResolutions(this.getReactApplicationContext());
 
-        promise.resolve(result !== null ? result.toString() : null);
+        promise.resolve(result != null ? result.toString() : null);
     }
 
     @ReactMethod
@@ -97,7 +97,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void openCamera(final Promise promise) {
         Activity currentActivity = getCurrentActivity();
-       // GJCamera gjc = GJCamera.getInstance();
+        // GJCamera gjc = GJCamera.getInstance();
         GJCamera gjc = GJCamera.newInstance();
         gjc.setPromise(promise);
 
@@ -109,7 +109,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void openCameraWithParams(String params, final Promise promise ) {
         Activity currentActivity = getCurrentActivity();
-     //   GJCamera gjc = GJCamera.getInstance();
+        //   GJCamera gjc = GJCamera.getInstance();
         GJCamera gjc = GJCamera.newInstance();
         gjc.setPromise(promise);
 

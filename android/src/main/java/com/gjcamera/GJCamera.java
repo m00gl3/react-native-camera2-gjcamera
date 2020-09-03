@@ -545,13 +545,13 @@ public class GJCamera extends AppCompatActivity {
         // Set ISO
         int iso = paramsObj.getISO();
 
-        if (iso !== null)
+        if (iso != -1)
             setISO(iso);
 
         // Set Exposure
         long exposure = paramsObj.getExposure();
-        
-        if (exposure !== null)
+
+        if (exposure != -1)
             setExposure(exposure);
 
         // "[10, 30]"
@@ -588,8 +588,8 @@ public class GJCamera extends AppCompatActivity {
         if (checkIsManualFocusSupportedWithoutContext()) {
             float newFocus = paramsObj.getFocus();
 
-            if (newFocus !== null)
-                setFocus();
+            if (newFocus != -1)
+                setFocus(newFocus);
         }
     }
 
