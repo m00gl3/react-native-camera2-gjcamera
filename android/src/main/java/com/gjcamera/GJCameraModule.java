@@ -81,6 +81,7 @@ public class GJCameraModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void getMinimumFocusDistance(final Promise promise) {
         GJCamera gjc = GJCamera.newInstance();
+
         float result = gjc.getMinimumFocusDistance(this.getReactApplicationContext());
 
         promise.resolve(result);
