@@ -503,11 +503,14 @@ public class GJCamera extends AppCompatActivity {
             readerListener = new ImageReader.OnImageAvailableListener() {
                 @Override
                 public void onImageAvailable(ImageReader imageReadr) {
-
+                    image = rawImageReader.acquireLatestImage();
+                    
+                    if (mCaptureResult == null)
+                        return;
+                    
                     try {
                         DngCreator dngCreator = new DngCreator(characteristics, mCaptureResult);
-                        image = rawImageReader.acquireLatestImage();
-
+                        
                         OutputStream outputStream = null;
                         try {
                             outputStream = new FileOutputStream(rawFile);
@@ -539,6 +542,35 @@ public class GJCamera extends AppCompatActivity {
                     super.onCaptureCompleted(session, request, result);
 
                     mCaptureResult = result;
+
+                    // Means we haven't reached onImageAvailable yet
+                    if (image == null)
+                        return;
+                    
+                    // If we got here, means we FIRST got to onImageAvailable and then to onCaptureCompleted
+                    try {
+                        DngCreator dngCreator = new DngCreator(characteristics, mCaptureResult);
+                        
+                        OutputStream outputStream = null;
+                        try {
+                            outputStream = new FileOutputStream(rawFile);
+                            dngCreator.writeImage(outputStream, image);
+                        } finally {
+                            if (image != null) {
+                                image.close();
+                            }
+
+                            if (outputStream != null)
+                                outputStream.close();
+
+                            Toast.makeText(GJCamera.this, "Saved " + rawFile, Toast.LENGTH_SHORT).show();
+                            returnHome();
+                        }
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
             };
 
