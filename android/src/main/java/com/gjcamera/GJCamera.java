@@ -12,7 +12,9 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
+import android.hardware.camera2.DngCreator;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
@@ -31,7 +33,7 @@ import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
-import android.widget.ImageButton;
+import android.widget.Button;
 import android.widget.Toast;
 
 import com.facebook.react.bridge.Arguments;
@@ -57,7 +59,8 @@ import android.content.Intent;
 
 public class GJCamera extends AppCompatActivity {
 
-    private ImageButton btnCapture;
+    private Button btnCapture;
+    private Button btnCaptureRaw;
     private TextureView textureView;
     private static Promise promise;
 
@@ -78,10 +81,12 @@ public class GJCamera extends AppCompatActivity {
     private CameraDevice cameraDevice;
     private CameraCaptureSession cameraCaptureSessions;
     private CaptureRequest.Builder captureRequestBuilder;
+    private ImageReader rawImageReader;
     private ImageReader imageReader;
 
     //Save to FILE
     private File file;
+    private File rawFile;
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
@@ -106,6 +111,9 @@ public class GJCamera extends AppCompatActivity {
     private int mHeight = 1200;
 
     SurfaceTexture texture;
+
+    private CaptureResult mCaptureResult;
+    private Image image = null;
 
     /*
     private static GJCamera sSoleInstance;
@@ -321,11 +329,20 @@ public class GJCamera extends AppCompatActivity {
         //From Java 1.4 , you can use keyword 'assert' to check expression true or false
         assert textureView != null;
         textureView.setSurfaceTextureListener(textureListener);
-        btnCapture = findViewById(R.id.clickButton);
+        /* btnCapture = findViewById(R.id.btnJpeg);
         btnCapture.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 saveImage();
+            }
+        });
+         */
+
+        btnCaptureRaw = findViewById(R.id.btnRaw);
+        btnCaptureRaw.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                saveRawImage();
             }
         });
     }
@@ -351,15 +368,8 @@ public class GJCamera extends AppCompatActivity {
             StreamConfigurationMap map = characteristics.get(
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
 
-            Size largestRaw = Collections.max(
-                    Arrays.asList(map.getOutputSizes(ImageFormat.RAW_SENSOR)),
-                    new CompareSizesByArea());
+           imageReader = ImageReader.newInstance(1600, 1200, ImageFormat.JPEG, 1);
 
-            // Save as RAW (using largest width and height)
-            imageReader = ImageReader.newInstance(largestRaw.getWidth(),
-                    largestRaw.getHeight(), ImageFormat.RAW_SENSOR, /*maxImages*/ 5);
-
-            // imageReader = ImageReader.newInstance(mWidth, mHeight, ImageFormat.JPEG, 1);
             List<Surface> outputSurface = new ArrayList<>(2);
             outputSurface.add(imageReader.getSurface());
             outputSurface.add(new Surface(textureView.getSurfaceTexture()));
@@ -374,6 +384,7 @@ public class GJCamera extends AppCompatActivity {
 
             Calendar calendar = Calendar.getInstance(TimeZone.getDefault());
             file = new File(Environment.getExternalStorageDirectory() + "/DCIM/Camera/IMG_" + calendar.get(Calendar.YEAR) + Double(calendar.get(Calendar.MONTH) +1) + Double(calendar.get(Calendar.DATE)) + "_" + Double(calendar.get(Calendar.HOUR_OF_DAY)) + Double(calendar.get(Calendar.MINUTE)) + Double(calendar.get(Calendar.SECOND)) + ".jpg");
+
             ImageReader.OnImageAvailableListener readerListener = null;
             readerListener = new ImageReader.OnImageAvailableListener() {
                 @Override
@@ -385,12 +396,11 @@ public class GJCamera extends AppCompatActivity {
                         byte[] bytes = new byte[buffer.capacity()];
                         buffer.get(bytes);
                         save(bytes);
-
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
                     } catch (IOException e) {
                         e.printStackTrace();
-                    } finally {
+                    }  finally {
                         {
                             if (image != null)
                                 image.close();
@@ -416,8 +426,119 @@ public class GJCamera extends AppCompatActivity {
                 @Override
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
+
                     Toast.makeText(GJCamera.this, "Saved " + file, Toast.LENGTH_SHORT).show();
                     returnHome();
+                }
+            };
+
+
+            cameraDevice.createCaptureSession(outputSurface, new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+                    try {
+                        cameraCaptureSession.capture(captureBuilder.build(), captureListener, mBackgroundHandler);
+//                        cameraDevice.close();
+                        //convertFileToWritableMap(file));
+//                        promise = null;
+
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+
+                }
+            }, mBackgroundHandler);
+
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveRawImage() {
+        if (cameraDevice == null)
+            return;
+        CameraManager manager = null;
+        manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+
+        try {
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
+
+            StreamConfigurationMap map = characteristics.get(
+                    CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
+            Size largestRaw = Collections.max(
+                    Arrays.asList(map.getOutputSizes(ImageFormat.RAW_SENSOR)),
+                    new CompareSizesByArea());
+
+            int resHeight = largestRaw.getHeight();
+            int resWidth = largestRaw.getWidth();
+
+            Log.d("resHeight = ", String.valueOf(resHeight));
+            Log.d("resWidth = ", String.valueOf(resWidth));
+
+            // Save as RAW (using largest width and height)
+            rawImageReader = ImageReader.newInstance(resWidth, resHeight, ImageFormat.RAW_SENSOR, /*maxImages*/ 5);
+
+            List<Surface> outputSurface = new ArrayList<>(2);
+            outputSurface.add(rawImageReader.getSurface());
+            outputSurface.add(new Surface(textureView.getSurfaceTexture()));
+
+            final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+            captureBuilder.addTarget(rawImageReader.getSurface());
+            captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+
+            //Check orientation base on device
+            int rotation = getWindowManager().getDefaultDisplay().getRotation();
+            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
+
+            Calendar calendar = Calendar.getInstance(TimeZone.getDefault());
+            rawFile = new File(Environment.getExternalStorageDirectory() + "/DCIM/Camera/IMG_" + calendar.get(Calendar.YEAR) + Double(calendar.get(Calendar.MONTH) +1) + Double(calendar.get(Calendar.DATE)) + "_" + Double(calendar.get(Calendar.HOUR_OF_DAY)) + Double(calendar.get(Calendar.MINUTE)) + Double(calendar.get(Calendar.SECOND)) + ".dng");
+
+            ImageReader.OnImageAvailableListener readerListener = null;
+            readerListener = new ImageReader.OnImageAvailableListener() {
+                @Override
+                public void onImageAvailable(ImageReader imageReadr) {
+
+                    try {
+                        DngCreator dngCreator = new DngCreator(characteristics, mCaptureResult);
+                        image = rawImageReader.acquireLatestImage();
+
+                        OutputStream outputStream = null;
+                        try {
+                            outputStream = new FileOutputStream(rawFile);
+                            dngCreator.writeImage(outputStream, image);
+                        } finally {
+                            if (image != null) {
+                                image.close();
+                            }
+
+                            if (outputStream != null)
+                                outputStream.close();
+
+                              Toast.makeText(GJCamera.this, "Saved " + rawFile, Toast.LENGTH_SHORT).show();
+                              returnHome();
+                        }
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+
+            rawImageReader.setOnImageAvailableListener(readerListener, mBackgroundHandler);
+
+            final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
+                @Override
+                public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+                    super.onCaptureCompleted(session, request, result);
+
+                    mCaptureResult = result;
                 }
             };
 
@@ -460,7 +581,7 @@ public class GJCamera extends AppCompatActivity {
             cameraCaptureSessions = null;
         }
         if (promise != null) {
-            promise.resolve(convertFileToWritableMap(file));
+            promise.resolve(convertFileToWritableMap(rawFile));
             promise = null;
             finish();
         }
@@ -510,15 +631,16 @@ public class GJCamera extends AppCompatActivity {
             captureRequestBuilder.set(CaptureRequest.LENS_FOCUS_DISTANCE, focus);
         }
 
-        /*
+
         // Required for RAW capture
-            captureBuilder.set(CaptureRequest.STATISTICS_LENS_SHADING_MAP_MODE, CaptureRequest.STATISTICS_LENS_SHADING_MAP_MODE_ON);
-            captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
-            captureBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-            captureBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, (long) ((214735991 - 13231) / 2));
-            captureBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);
-            captureBuilder.set(CaptureRequest.SENSOR_SENSITIVITY, (10000 - 100) / 2);//设置 ISO，感光度
-         */
+        /*
+        captureRequestBuilder.set(CaptureRequest.STATISTICS_LENS_SHADING_MAP_MODE, CaptureRequest.STATISTICS_LENS_SHADING_MAP_MODE_ON);
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+        captureRequestBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, (long) ((214735991 - 13231) / 2));
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);
+        captureRequestBuilder.set(CaptureRequest.SENSOR_SENSITIVITY, (10000 - 100) / 2);//设置 ISO，感光度
+        */
         ///////////////////////////
         // How to set FPS
         // Set the frame rate of the preview screen. Select a frame rate range depending on the actual situation.

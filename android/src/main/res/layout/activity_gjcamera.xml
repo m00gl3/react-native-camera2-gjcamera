@@ -10,16 +10,26 @@ tools:context="com.gjcamera.MainActivity">
     android:id="@+id/textureView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:layout_above="@+id/clickButton"
+    android:layout_above="@+id/btnRaw"
 
     />
 
-<ImageButton
-    android:id="@+id/clickButton"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_alignParentBottom="true"
-    android:layout_alignParentRight="true"
-    android:src="@drawable/camera_click" />
+   <!-- <Button
+        android:id="@+id/btnJpeg"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginRight="-4dp"
+        android:layout_marginBottom="67dp"
+        android:text="JPEG" /> -->
+
+    <Button
+        android:id="@+id/btnRaw"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="true"
+        android:text="RAW" />
 
 </RelativeLayout>
